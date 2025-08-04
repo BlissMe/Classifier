@@ -1,16 +1,16 @@
+
+from dotenv import load_dotenv
+from colorama import init, Fore
+from agent import chat_with_user, detect_depression, detect_from_summary
 import os
 import sys
-from dotenv import load_dotenv
-from agent import chat_with_user, agent
-from colorama import init, Fore
-from agent import detect_depression
 
 # Initialize colorama
 init(autoreset=True)
 
 def check_api_key():
     """Ensure Groq API key is available before running."""
-    load_dotenv()  # Load variables from .env
+    load_dotenv()
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         print(Fore.RED + "❌ ERROR: GROQ_API_KEY not found.")
@@ -41,7 +41,7 @@ def main():
             break
         elif user_input.lower() == "summary":
             summary_input = input("Paste chat summary: ")
-            result = detect_depression()
+            result = detect_from_summary(summary_input)
             display_detection_result(result)
         elif user_input.lower() == "analyze":
             result = detect_depression()

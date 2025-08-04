@@ -1,13 +1,10 @@
 import os
-#from langchain.chat_models import ChatGroq
+from dotenv import load_dotenv
 from langchain.schema import HumanMessage
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
 from langchain.agents import initialize_agent, Tool
-#from langchain_community.chat_models import ChatGroq
 from langchain_groq.chat_models import ChatGroq
-from dotenv import load_dotenv
-
 
 # Load environment variables
 load_dotenv()
@@ -54,31 +51,29 @@ conversation_history = []
 def chat_with_user(user_input: str) -> str:
     """Handles regular conversation with the user."""
     conversation_history.append(f"User: {user_input}")
-    response = llm([HumanMessage(content=user_input)]).content
+    response = llm.invoke([HumanMessage(content=user_input)]).content
     conversation_history.append(f"Agent: {response}")
     return response
 
 def summarize_conversation(_: str = "") -> str:
     """Summarizes the conversation so far."""
     conversation = "\n".join(conversation_history)
-    return summary_chain.run(conversation=conversation)
+    result = summary_chain.invoke({"conversation": conversation})
+    return result["text"] if isinstance(result, dict) else result
 
 def detect_depression(_: str = "") -> str:
     """Detects depression signs based on conversation summary."""
     summary = summarize_conversation()
     result = detect_chain.invoke({"summary": summary})
-    return f"Summary:\n{summary}\n\nDetection Result: {result}"
+    return f"Summary:\n{summary}\n\nDetection Result: {result['text'] if isinstance(result, dict) else result}"
 
-def detect_depression(_: str = "") -> str:
-    """Detects depression signs based on conversation summary."""
-    summary = summarize_conversation()
-    result = detect_chain.invoke({"summary": summary})  
-    return f"Summary:\n{summary}\n\nDetection Result: {result}"
-
+def detect_from_summary(summary: str) -> str:
+    """Detect depression signs from a manually provided chat summary."""
+    result = detect_chain.invoke({"summary": summary})
+    return f"Summary:\n{summary}\n\nDetection Result: {result['text'] if isinstance(result, dict) else result}"
 
 # ------------------------------
 # 5. Tools and Agent
-
 # ------------------------------
 tools = [
     Tool(name="Summarizer", func=summarize_conversation, description="Summarizes chat so far."),
@@ -87,5 +82,5 @@ tools = [
 
 agent = initialize_agent(tools, llm, agent="zero-shot-react-description", verbose=True)
 
-# Export_functions and agent
-__all__ = ["chat_with_user", "agent", "detect_from_summary"]
+# Export functions and agent
+__all__ = ["chat_with_user", "agent", "detect_depression", "detect_from_summary"]
