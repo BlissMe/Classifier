@@ -4,7 +4,7 @@ import json
 from dotenv import load_dotenv
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
-from langchain_groq.chat_models import ChatGroq
+from langchain_groq import ChatGroq  # ✅ correct import
 
 # Load environment variables
 load_dotenv()
@@ -52,26 +52,34 @@ emotion_prompt = PromptTemplate(
 emotion_chain = LLMChain(llm=llm, prompt=emotion_prompt)
 
 # ------------------------------
-# 4. Public Functions
+# Helpers
 # ------------------------------
-def detect_from_summary(summary: str) -> str:
-    """Detect depression signs from a manually provided chat summary."""
-    result = detect_chain.invoke({"summary": summary})
-    text = result["text"] if isinstance(result, dict) else str(result)
-    return f"Summary:\n{summary}\n\nDetection Result: {text}"
+_CONF_RE = re.compile(r"confidence\s*:?\s*(\d{1,3})\s*%", flags=re.IGNORECASE)
+
+def _invert_confidence_if_no_depression(text: str) -> str:
+    """
+    If the model output is 'No Depression Signs Detected (Confidence: XX%)',
+    replace the confidence with (100 - XX) to reflect 'depression likelihood'.
+    """
+    if re.search(r"\bNo\s+Depression\s+Signs\s+Detected\b", text, flags=re.IGNORECASE):
+        m = _CONF_RE.search(text)
+        if m:
+            try:
+                raw = int(m.group(1))
+                raw = max(0, min(raw, 100))
+                inverted = 100 - raw
+                start, end = m.span(1)
+                text = text[:start] + str(inverted) + text[end:]
+            except Exception:
+                pass
+    return text
 
 def _extract_json(text: str):
-    """
-    Attempts to parse JSON from a model response.
-    Tries direct json.loads first; if it fails, attempts to find the first {...} block.
-    """
-    # Direct attempt
+    """Parse JSON from a model response, with a regex fallback."""
     try:
         return json.loads(text)
     except Exception:
         pass
-
-    # Regex fallback to first balanced-looking JSON object
     match = re.search(r"\{.*\}", text, flags=re.DOTALL)
     if match:
         try:
@@ -80,23 +88,28 @@ def _extract_json(text: str):
             return None
     return None
 
+# ------------------------------
+# 4. Public Functions
+# ------------------------------
+def detect_from_summary(summary: str) -> str:
+    """Detect depression signs from a manually provided chat summary."""
+    result = detect_chain.invoke({"summary": summary})
+    text = result["text"] if isinstance(result, dict) else str(result)
+    text = _invert_confidence_if_no_depression(text)
+    return f"Summary:\n{summary}\n\nDetection Result: {text}"
+
 def detect_emotion_from_summary(summary: str):
     """
     Classify prevailing emotion (sad, happy, neutral, angry, fearful).
-    Returns the emotion label as a lowercase string, e.g., "sad".
-    (Kept minimal; if upstream lib returns dicts, main.py handles it too.)
+    Returns the emotion label as a lowercase string, e.g., 'sad'.
     """
     raw = emotion_chain.invoke({"summary": summary})
     text = raw["text"] if isinstance(raw, dict) else str(raw)
-
     data = _extract_json(text) or {}
     emotion = str(data.get("emotion", "neutral")).lower()
-
-    # Sanitize outputs
     allowed = {"sad", "happy", "neutral", "angry", "fearful"}
     if emotion not in allowed:
         emotion = "neutral"
-
     return emotion
 
 __all__ = ["detect_from_summary", "detect_emotion_from_summary"]
