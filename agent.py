@@ -93,7 +93,7 @@ def detect_emotion_from_summary(summary: str) -> dict:
     confidence = data.get("confidence", 50)
 
     # Sanitize outputs
-    allowed = {"sad", "happy", "neutral", "angry", "fearful"}
+    allowed = {"sad", "happy", "neutral", "angry", "f earful"}
     if emotion not in allowed:
         emotion = "neutral"
     try:
